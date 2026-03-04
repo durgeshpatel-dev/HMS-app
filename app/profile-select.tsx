@@ -1,9 +1,13 @@
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Pressable, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import { staffProfiles } from '../mocks/staff-data';
 import { useAuth } from '../providers/AuthProvider';
 import { useRouter } from 'expo-router';
 import { Utensils, Shield, Coffee, ChefHat } from 'lucide-react-native';
+
+const IS_WEB = Platform.OS === 'web';
+const MAX_CONTAINER_WIDTH = 480;
 
 const roleMeta = {
   manager: { label: 'Manager', Icon: Shield },
@@ -14,6 +18,7 @@ const roleMeta = {
 export default function ProfileSelect() {
   const { selectProfile } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleSelect = (profile: typeof staffProfiles[number]) => {
     selectProfile(profile);
@@ -21,7 +26,7 @@ export default function ProfileSelect() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: IS_WEB ? 32 : insets.top + 12 }]} showsVerticalScrollIndicator={false}>
       <View style={styles.brandIcon}>
         <Utensils size={28} color={colors.surface} />
       </View>
@@ -61,8 +66,11 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 24,
-    paddingTop: 48,
-    paddingBottom: 32
+    paddingTop: IS_WEB ? 32 : 48,
+    paddingBottom: 32,
+    maxWidth: IS_WEB ? MAX_CONTAINER_WIDTH : undefined,
+    width: '100%',
+    alignSelf: IS_WEB ? 'center' : undefined
   },
   brandIcon: {
     width: 64,

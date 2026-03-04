@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Table2, Utensils, Settings, ChefHat } from 'lucide-react-native';
+import { Home, Users, Utensils, Settings, ChefHat } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../providers/AuthProvider';
 
@@ -13,17 +13,18 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarActiveTintColor: '#FF6B35',
+        tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: '#FFF',
+          borderTopColor: '#E5E7EB',
+          borderTopWidth: 1,
           paddingBottom: 8,
           paddingTop: 8,
           height: 64,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: '600'
         }
       }}
@@ -41,7 +42,7 @@ export default function TabsLayout() {
         options={{
           title: 'Tables',
           href: isKitchen ? null : undefined,
-          tabBarIcon: ({ color, size }) => <Table2 size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
         }}
       />
       <Tabs.Screen

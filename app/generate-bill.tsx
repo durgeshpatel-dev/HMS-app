@@ -1,4 +1,5 @@
 ﻿import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import { useRestaurantStore } from '../store/useRestaurantStore';
 import { formatCurrency, formatDate, getOrderStatusText } from '../utils/helpers';
@@ -8,6 +9,7 @@ import { useRouter } from 'expo-router';
 export default function GenerateBill() {
   const { orders, getOrderItems, getOrderTotal } = useRestaurantStore();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // For demo, show the latest closed order
   const latestOrder = [...orders]
@@ -40,7 +42,7 @@ export default function GenerateBill() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView style={[styles.scrollContainer, { paddingTop: insets.top + 8 }]} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
@@ -74,7 +76,7 @@ export default function GenerateBill() {
             <Text style={styles.itemsHeaderText}>Price</Text>
             <Text style={styles.itemsHeaderText}>Total</Text>
           </View>
-          
+
           {orderItems.map(({ item, quantity }) => (
             <View key={item.id} style={styles.itemRow}>
               <Text style={styles.itemName}>{item.name}</Text>

@@ -33,19 +33,14 @@ export default function MenuItemCard({
         ) : null}
         <Text style={styles.price}>{formatCurrency(price)}</Text>
       </View>
-      <View style={styles.controls}>
-        {quantity > 0 ? (
-          <Pressable style={styles.controlButton} onPress={onRemove}>
-            <Minus size={14} color={colors.primary} />
-          </Pressable>
-        ) : (
-          <View style={styles.controlSpacer} />
-        )}
-        <Pressable style={styles.addButton} onPress={onAdd}>
-          <Plus size={16} color={colors.surface} />
-        </Pressable>
-        {quantity > 0 ? <Text style={styles.quantityText}>{quantity}</Text> : null}
-      </View>
+      <Pressable style={styles.addButton} onPress={onAdd}>
+        <Plus size={20} color="#FFF" />
+      </Pressable>
+      {quantity > 0 && (
+        <View style={styles.quantityBadge}>
+          <Text style={styles.quantityText}>{quantity}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -53,68 +48,87 @@ export default function MenuItemCard({
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
     padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    position: 'relative',
     borderWidth: 1,
-    borderColor: colors.border
+    borderColor: 'transparent'
   },
   thumbnail: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceAlt,
-    marginRight: 12
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    marginRight: 16,
+    flexShrink: 0
   },
   info: {
-    flex: 1
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingVertical: 4
   },
   name: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    color: colors.textStrong
+    color: '#1d130c',
+    marginBottom: 4,
+    lineHeight: 20
   },
   description: {
     fontSize: 12,
-    color: colors.mutedDark,
-    marginTop: 4
+    color: '#a16b45',
+    marginTop: 4,
+    lineHeight: 16
   },
   price: {
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: '700',
-    color: colors.textStrong,
-    marginTop: 6
-  },
-  controls: {
-    alignItems: 'center',
-    gap: 6,
-    width: 56
+    color: '#1d130c',
+    marginTop: 8
   },
   addButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.primary,
+    backgroundColor: '#ff6a00',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    shadowColor: '#ff6a00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4
   },
-  controlButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.primary,
+  quantityBadge: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    backgroundColor: '#ff6a00',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
     alignItems: 'center',
-    justifyContent: 'center'
-  },
-  controlSpacer: {
-    width: 28,
-    height: 28
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    shadowColor: '#ff6a00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3
   },
   quantityText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.textStrong
+    color: '#FFF'
   }
 });

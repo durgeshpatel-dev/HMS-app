@@ -9,8 +9,8 @@ export default function Index() {
       user.role === 'manager'
         ? '/(tabs)/dashboard'
         : user.role === 'kitchen'
-        ? '/(tabs)/kitchen'
-        : '/(tabs)/tables';
+          ? '/(tabs)/kitchen'
+          : '/(tabs)/tables';
     return <Redirect href={target} />;
   }
 
