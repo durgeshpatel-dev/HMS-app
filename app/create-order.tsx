@@ -1,23 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Search, SlidersHorizontal } from 'lucide-react-native';
 import { colors } from '../constants/colors';
 import { useRestaurantStore } from '../store/useRestaurantStore';
 import MenuItemCard from '../components/MenuItemCard';
 import ItemCustomizationModal from '../components/ItemCustomizationModal';
-import { formatCurrency } from '../utils/helpers';
 
 export default function CreateOrder() {
-  const { menuItems, selectedTable, addOrder, orders } = useRestaurantStore();
+  const { menuItems, cart, addToCart, updateCartItem, removeFromCart, getCartItemCount } = useRestaurantStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams();
 
-  const [orderItems, setOrderItems] = useState<Record<string, number>>({});
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All Items');
-  const [note, setNote] = useState('');
   const [showCustomization, setShowCustomization] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
@@ -46,60 +44,40 @@ export default function CreateOrder() {
     setShowCustomization(true);
   };
 
-  const handleAddToOrder = (quantity: number, customizations: any) => {
+  const handleAddToCart = (quantity: number, customizations: any) => {
     if (!selectedItem) return;
 
-    setOrderItems((prev) => ({
-      ...prev,
-      [selectedItem.id]: (prev[selectedItem.id] || 0) + quantity
-    }));
+    addToCart({
+      itemId: selectedItem.id,
+      quantity,
+      specialInstructions: customizations.notes,
+      spiceLevel: customizations.spiceLevel,
+      dietPreference: customizations.dietPreference,
+    });
+    
     setShowCustomization(false);
     setSelectedItem(null);
   };
 
   const handleRemoveItem = (itemId: string) => {
-    setOrderItems((prev) => {
-      const nextCount = Math.max(0, (prev[itemId] || 0) - 1);
-      if (nextCount === 0) {
-        const { [itemId]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [itemId]: nextCount };
-    });
+    const cartItem = cart.find((item) => item.itemId === itemId);
+    if (!cartItem) return;
+    
+    if (cartItem.quantity === 1) {
+      removeFromCart(itemId);
+    } else {
+      updateCartItem(itemId, cartItem.quantity - 1);
+    }
   };
 
-  const handleCreateOrder = () => {
-    if (!selectedTable) return;
-    if (Object.keys(orderItems).length === 0) return;
+  const getItemQuantity = (itemId: string) => {
+    const cartItem = cart.find((item) => item.itemId === itemId);
+    return cartItem?.quantity || 0;
+  };
 
-    // Check if there's an existing open order for this table
-    const existingOrder = orders.find(
-      (o) => o.tableId === selectedTable.id && o.status !== 'closed'
-    );
-
-    if (existingOrder) {
-      // Navigate to order summary of existing order
-      router.push(`/order-summary/${existingOrder.id}`);
-      return;
-    }
-
-    const order = {
-      id: `o${Date.now()}`,
-      tableId: selectedTable.id,
-      items: Object.entries(orderItems).map(([itemId, quantity]) => ({
-        itemId,
-        quantity,
-        status: 'new' as const
-      })),
-      status: 'open' as const,
-      createdAt: new Date().toISOString(),
-      notes: note.trim() || undefined
-    };
-
-    addOrder(order);
-
-    // Navigate to order summary instead of orders list
-    router.push(`/order-summary/${order.id}`);
+  const handleViewOrder = () => {
+    // Navigate to order summary to review before submitting
+    router.push(`/order-summary/new?tableId=${params.tableId}`);
   };
 
   return (
@@ -162,17 +140,20 @@ export default function CreateOrder() {
               name={item.name}
               description={item.description}
               price={item.price}
-              quantity={orderItems[item.id] || 0}
+              quantity={getItemQuantity(item.id)}
               onAdd={() => handleAddItem(item)}
               onRemove={() => handleRemoveItem(item.id)}
             />
           ))}
         </View>
 
-        {Object.keys(orderItems).length > 0 && (
-          <Pressable style={[styles.viewOrderButton, { marginBottom: Math.max(insets.bottom, 24) }]} onPress={handleCreateOrder}>
+        {cart.length > 0 && (
+          <Pressable 
+            style={[styles.viewOrderButton, { marginBottom: Math.max(insets.bottom, 24) }]} 
+            onPress={handleViewOrder}
+          >
             <Text style={styles.viewOrderText}>
-              View Order ({Object.values(orderItems).reduce((a, b) => a + b, 0)} items)
+              View Order ({getCartItemCount()} items)
             </Text>
           </Pressable>
         )}
@@ -186,7 +167,7 @@ export default function CreateOrder() {
             setShowCustomization(false);
             setSelectedItem(null);
           }}
-          onAddToOrder={handleAddToOrder}
+          onAddToOrder={handleAddToCart}
           itemName={selectedItem.name}
           itemDescription={selectedItem.description}
           itemPrice={selectedItem.price}

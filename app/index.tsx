@@ -6,11 +6,9 @@ export default function Index() {
 
   if (user) {
     const target =
-      user.role === 'manager'
-        ? '/(tabs)/dashboard'
-        : user.role === 'kitchen'
-          ? '/(tabs)/kitchen'
-          : '/(tabs)/tables';
+      user.role === 'kitchen'
+        ? '/(tabs)/kitchen'
+        : '/(tabs)/tables';
     return <Redirect href={target} />;
   }
 

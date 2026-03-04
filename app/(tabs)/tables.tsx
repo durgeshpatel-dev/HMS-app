@@ -2,16 +2,16 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Bell, Users, Utensils } from 'lucide-react-native';
+import { Bell, Users, Utensils, Receipt } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { useRestaurantStore } from '../../store/useRestaurantStore';
 import { formatDuration } from '../../utils/helpers';
 import { useAuth } from '../../providers/AuthProvider';
 
-type FilterKey = 'all' | 'occupied' | 'ready';
+type FilterKey = 'all' | 'occupied' | 'billing';
 
 export default function Tables() {
-  const { tables, orders, selectTable } = useRestaurantStore();
+  const { tables, orders, selectTable, getTableActiveOrder, getCartItemCount, clearCart } = useRestaurantStore();
   const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -24,18 +24,26 @@ export default function Tables() {
 
   const handleTablePress = (table: typeof tables[number]) => {
     selectTable(table);
-    if (table.status === 'free') {
-      router.push('/create-order');
-      return;
-    }
-    const activeOrder = orders.find(
-      (order) => order.tableId === table.id && order.status !== 'closed'
-    );
+    
+    // If table has active order
+    const activeOrder = getTableActiveOrder(table.id);
+    
     if (activeOrder) {
-      router.push(`/order/${activeOrder.id}`);
-      return;
+      if (activeOrder.status === 'billing') {
+        // Go to billing
+        router.push(`/generate-bill?tableId=${table.id}`);
+      } else if (activeOrder.status === 'ready') {
+        // Show option to generate bill
+        router.push(`/order/${activeOrder.id}`);
+      } else {
+        // Show order details
+        router.push(`/order/${activeOrder.id}`);
+      }
+    } else {
+      // New order - clear cart and go to menu
+      clearCart();
+      router.push(`/create-order?tableId=${table.id}`);
     }
-    router.push('/create-order');
   };
 
   return (
@@ -62,7 +70,7 @@ export default function Tables() {
           {[
             { key: 'all', label: 'All Tables', icon: null },
             { key: 'occupied', label: 'Occupied', icon: '🔴' },
-            { key: 'ready', label: 'Food Ready', icon: '✓' },
+            { key: 'billing', label: 'Billing', icon: '💳' },
           ].map((item) => (
             <Pressable
               key={item.key}
@@ -83,8 +91,8 @@ export default function Tables() {
               {item.key === 'occupied' && (
                 <View style={styles.statusDot} />
               )}
-              {item.key === 'ready' && (
-                <Text style={[styles.checkIcon, filter === item.key && styles.checkIconActive]}>✓</Text>
+              {item.key === 'billing' && (
+                <Receipt size={14} color={filter === item.key ? '#FFF' : '#666'} />
               )}
               <Text
                 style={[
@@ -100,18 +108,16 @@ export default function Tables() {
 
         <View style={styles.grid}>
           {filteredTables.map((table) => {
-            const isFree = table.status === 'free';
-            const isReady = table.status === 'ready';
-            const cardStyle = isFree
+            const isAvailable = table.status === 'available';
+            const isBilling = table.status === 'billing';
+            const cardStyle = isAvailable
               ? styles.cardFree
-              : isReady
-                ? styles.cardReady
+              : isBilling
+                ? styles.cardBilling
                 : styles.cardOccupied;
-            const textColor = isFree ? '#D0D0D0' : '#FFF';
+            const textColor = isAvailable ? '#D0D0D0' : '#FFF';
 
-            const activeOrder = orders.find(
-              (order) => order.tableId === table.id && order.status !== 'closed'
-            );
+            const activeOrder = getTableActiveOrder(table.id);
 
             return (
               <Pressable
@@ -119,29 +125,30 @@ export default function Tables() {
                 style={[styles.tableCard, cardStyle]}
                 onPress={() => handleTablePress(table)}
               >
-                {!isFree && (
+                {!isAvailable && (
                   <View style={styles.cardHeader}>
                     <Text style={styles.statusBadge}>
-                      {isReady ? 'READY' : 'OCCUPIED'}
+                      {isBilling ? 'BILLING' : activeOrder?.status === 'ready' ? 'READY' : 'OCCUPIED'}
                     </Text>
-                    {isReady ? (
+                    {isBilling ? (
+                      <Receipt size={18} color="#FFF" />
+                    ) : activeOrder?.status === 'ready' ? (
                       <Utensils size={18} color="#FFF" />
                     ) : (
                       <Users size={18} color="#FFF" />
                     )}
                   </View>
                 )}
-                {isFree && (
+                {isAvailable && (
                   <Text style={styles.freeLabel}>FREE</Text>
                 )}
                 <Text style={[styles.tableNumber, { color: textColor }]}>
                   {table.label}
                 </Text>
-                {isReady && activeOrder ? (
-                  <Text style={styles.orderNumber}>Order #{activeOrder.id.slice(-3)}</Text>
-                ) : !isFree ? (
+                {activeOrder && !isAvailable ? (
                   <Text style={styles.tableMeta}>
-                    {table.guests || 0} Guests • {formatDuration(table.elapsedMinutes)}
+                    {activeOrder.items.reduce((sum, item) => sum + item.quantity, 0)} items
+                    {table.elapsedMinutes ? ` • ${formatDuration(table.elapsedMinutes)}` : ''}
                   </Text>
                 ) : null}
               </Pressable>
@@ -303,9 +310,9 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
     shadowOpacity: 0
   },
-  cardReady: {
-    backgroundColor: '#22C55E',
-    shadowColor: '#22C55E',
+  cardBilling: {
+    backgroundColor: '#F59E0B',
+    shadowColor: '#F59E0B',
     shadowOpacity: 0.2
   },
   cardOccupied: {

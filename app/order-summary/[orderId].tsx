@@ -1,99 +1,122 @@
 import { useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ArrowLeft, Plus, Minus, Trash2, ChefHat, X } from 'lucide-react-native';
+import { ArrowLeft, Plus, Minus, ChefHat } from 'lucide-react-native';
 import { useRestaurantStore } from '../../store/useRestaurantStore';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency } from '../../src/utils/formatCurrency';
+import { useAuth } from '../../providers/AuthProvider';
+import { ConfirmDialog } from '../../src/components/common/ConfirmDialog';
+import { showToast } from '../../src/hooks/useToast';
 
 export default function OrderSummary() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
-  const { orders, tables, menuItems, getOrderItems, updateOrder, selectTable } = useRestaurantStore();
+  const params = useLocalSearchParams();
+  const { 
+    cart, 
+    menuItems, 
+    updateCartItem, 
+    removeFromCart, 
+    submitOrderToKitchen,
+    getCartTotal,
+    tables
+  } = useRestaurantStore();
+  const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const order = orders.find((o) => o.id === orderId);
-  const [localItems, setLocalItems] = useState(order?.items || []);
-  const [notes, setNotes] = useState(order?.notes || '');
+  // Get table ID from URL params (for new orders)
+  const tableId = params.tableId as string;
+  const table = tables.find((t) => t.id === tableId);
 
-  if (!order) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.notFound}>Order not found</Text>
-      </View>
-    );
-  }
-
-  const table = tables.find((t) => t.id === order.tableId);
-  const tableLabel = table?.label || order.tableId;
-
-  const displayItems = localItems.map(li => {
-    const menuItem = menuItems.find(mi => mi.id === li.itemId);
+  const displayItems = cart.map(cartItem => {
+    const menuItem = menuItems.find(mi => mi.id === cartItem.itemId);
     return {
-      id: li.itemId,
-      item: menuItem || { id: li.itemId, name: 'Unknown', price: 0 },
-      quantity: li.quantity
+      ...cartItem,
+      item: menuItem || { id: cartItem.itemId, name: 'Unknown', price: 0 },
     };
   });
 
   const totalItems = displayItems.reduce((sum, { quantity }) => sum + quantity, 0);
-  const totalAmount = displayItems.reduce((sum, { item, quantity }) => sum + (item.price * quantity), 0);
+  const totalAmount = getCartTotal();
 
   const handleUpdateQuantity = (itemId: string, delta: number) => {
-    setLocalItems(prev => {
-      return prev.map(item => {
-        if (item.itemId === itemId) {
-          const newQuantity = item.quantity + delta;
-          return newQuantity > 0 ? { ...item, quantity: newQuantity } : item;
-        }
-        return item;
-      }).filter(item => item.quantity > 0);
-    });
+    const cartItem = cart.find((item) => item.itemId === itemId);
+    if (!cartItem) return;
+    
+    const newQuantity = cartItem.quantity + delta;
+    if (newQuantity <= 0) {
+      removeFromCart(itemId);
+    } else {
+      updateCartItem(itemId, newQuantity);
+    }
   };
 
   const handleRemoveItem = (itemId: string) => {
-    setLocalItems(prev => prev.filter(item => item.itemId !== itemId));
+    removeFromCart(itemId);
   };
 
   const handleAddMore = () => {
-    // Save current changes first
-    updateOrder(orderId, {
-      items: localItems,
-      notes: notes
-    });
-    selectTable(table || null);
-    router.push('/create-order');
+    router.back();
   };
 
   const handleSendToKitchen = () => {
-    if (localItems.length === 0) {
-      Alert.alert('Error', 'Order must have at least one item');
+    setShowConfirm(true);
+  };
+
+  const confirmSendToKitchen = () => {
+    if (!tableId) {
+      showToast.error('Table not selected');
       return;
     }
 
-    updateOrder(orderId, {
-      items: localItems,
-      notes: notes,
-      status: 'preparing'
-    });
+    if (cart.length === 0) {
+      showToast.error('Cart is empty');
+      return;
+    }
 
-    // Show success and navigate
-    Alert.alert(
-      'Order sent to kitchen',
-      `Order #${orderId.slice(-3)} has been successfully received and preparation will begin immediately.`,
-      [
-        {
-          text: 'Start New Order',
-          onPress: () => router.push('/(tabs)/tables')
-        },
-        {
-          text: 'Back to Tables',
-          onPress: () => router.push('/(tabs)/tables')
-        }
-      ]
-    );
+    const newOrder = submitOrderToKitchen(tableId, user?.name);
+    
+    if (newOrder) {
+      setShowConfirm(false);
+      showToast.success('Order sent to kitchen successfully!');
+      router.push('/(tabs)/tables');
+    } else {
+      showToast.error('Failed to submit order');
+    }
   };
+
+  if (!tableId || !table) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.notFound}>Table not found</Text>
+      </View>
+    );
+  }
+
+  if (cart.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={24} color="#000" />
+          </Pressable>
+          <View style={styles.headerCenter}>
+            <Text style={styles.tableTitle}>Table {table.label}</Text>
+          </View>
+          <View style={{ width: 60 }} />
+        </View>
+        <View style={styles.emptyCart}>
+          <Text style={styles.emptyText}>Cart is empty</Text>
+          <Pressable style={styles.addItemsButton} onPress={() => router.back()}>
+            <Text style={styles.addItemsText}>Add Items</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -104,7 +127,7 @@ export default function OrderSummary() {
             <ArrowLeft size={24} color="#000" />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.tableTitle}>Table {tableLabel}</Text>
+            <Text style={styles.tableTitle}>Table {table.label}</Text>
             <Text style={styles.dineIn}>Dine In</Text>
           </View>
           <Pressable style={styles.addButton} onPress={handleAddMore}>
@@ -117,31 +140,32 @@ export default function OrderSummary() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Current Items</Text>
           <Text style={styles.sectionSubtitle}>
-            Review your order before to kitchen
+            Review your order before sending to kitchen
           </Text>
 
           <View style={styles.itemsList}>
-            {displayItems.map(({ id, item, quantity }) => (
-              <View key={id} style={styles.itemCard}>
+            {displayItems.map(({ itemId, item, quantity, specialInstructions }) => (
+              <View key={itemId} style={styles.itemCard}>
                 <View style={styles.itemImage} />
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
-                  <View style={styles.itemMeta}>
-                    <Text style={styles.itemLabel}>Mild Spicy</Text>
-                    <Text style={styles.itemLabel}>No Garlic</Text>
-                  </View>
+                  {specialInstructions && (
+                    <View style={styles.itemMeta}>
+                      <Text style={styles.itemLabel}>{specialInstructions}</Text>
+                    </View>
+                  )}
                   <View style={styles.itemFooter}>
                     <View style={styles.quantityControl}>
                       <Pressable
                         style={[styles.quantityBtn, styles.quantityBtnMinus]}
-                        onPress={() => handleUpdateQuantity(id, -1)}
+                        onPress={() => handleUpdateQuantity(itemId, -1)}
                       >
                         <Minus size={16} color="#64748B" />
                       </Pressable>
                       <Text style={styles.quantityNumber}>{quantity}</Text>
                       <Pressable
                         style={[styles.quantityBtn, styles.quantityBtnPlus]}
-                        onPress={() => handleUpdateQuantity(id, 1)}
+                        onPress={() => handleUpdateQuantity(itemId, 1)}
                       >
                         <Plus size={16} color="#FFF" />
                       </Pressable>
@@ -151,25 +175,14 @@ export default function OrderSummary() {
                 </View>
                 <Pressable
                   style={styles.removeButton}
-                  onPress={() => handleRemoveItem(id)}
+                  onPress={() => handleRemoveItem(itemId)}
                 >
-                  <X size={16} color="#9CA3AF" />
+                  <Minus size={16} color="#9CA3AF" />
                 </Pressable>
-                <View style={styles.checkBadge}>
-                  <Text style={styles.checkIcon}>✓</Text>
-                </View>
               </View>
             ))}
           </View>
         </View>
-
-        {/* Kitchen Note */}
-        {notes && (
-          <View style={styles.noteSection}>
-            <Text style={styles.noteLabel}>Kitchen Note</Text>
-            <Text style={styles.noteText}>{notes}</Text>
-          </View>
-        )}
 
         {/* Total */}
         <View style={styles.totalSection}>
@@ -191,6 +204,17 @@ export default function OrderSummary() {
           <Text style={styles.sendButtonText}>Send to Kitchen</Text>
         </Pressable>
       </View>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        visible={showConfirm}
+        title="Send to Kitchen?"
+        message={`Are you sure you want to send ${totalItems} items to the kitchen for Table ${table.label}?`}
+        confirmText="Send Order"
+        cancelText="Cancel"
+        onConfirm={confirmSendToKitchen}
+        onCancel={() => setShowConfirm(false)}
+      />
     </View>
   );
 }
@@ -208,6 +232,28 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginTop: 40
+  },
+  emptyCart: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#666',
+    marginBottom: 16
+  },
+  addItemsButton: {
+    backgroundColor: '#ff6a00',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8
+  },
+  addItemsText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600'
   },
   header: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Users, Utensils, Settings, ChefHat } from 'lucide-react-native';
+import { Users, Utensils, Settings, ChefHat } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../providers/AuthProvider';
 
@@ -7,7 +7,6 @@ export default function TabsLayout() {
   const { user } = useAuth();
   const role = user?.role;
   const isKitchen = role === 'kitchen';
-  const isManager = role === 'manager';
 
   return (
     <Tabs
@@ -29,14 +28,6 @@ export default function TabsLayout() {
         }
       }}
     >
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          href: isManager ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
-        }}
-      />
       <Tabs.Screen
         name="tables"
         options={{

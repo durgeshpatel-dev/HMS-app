@@ -40,11 +40,9 @@ export default function PinScreen() {
       const ok = signInWithPin(next);
       if (ok) {
         const target =
-          selectedProfile?.role === 'manager'
-            ? '/(tabs)/dashboard'
-            : selectedProfile?.role === 'kitchen'
-              ? '/(tabs)/kitchen'
-              : '/(tabs)/tables';
+          selectedProfile?.role === 'kitchen'
+            ? '/(tabs)/kitchen'
+            : '/(tabs)/tables';
         router.replace(target);
       } else {
         setError('Incorrect PIN');
