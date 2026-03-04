@@ -32,7 +32,7 @@ export default function TabsLayout() {
         options={{
           title: 'Tables',
           tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
-          href: isKitchen ? null : '/tables',
+          href: isKitchen ? null : '/(tabs)/tables',
         }}
       />
       <Tabs.Screen
@@ -40,7 +40,7 @@ export default function TabsLayout() {
         options={{
           title: 'Orders',
           tabBarIcon: ({ color, size }) => <Utensils size={size} color={color} />,
-          href: isKitchen ? null : '/orders',
+          href: isKitchen ? null : '/(tabs)/orders',
         }}
       />
       <Tabs.Screen
@@ -48,7 +48,7 @@ export default function TabsLayout() {
         options={{
           title: 'Kitchen',
           tabBarIcon: ({ color, size }) => <ChefHat size={size} color={color} />,
-          href: isKitchen ? '/kitchen' : null,
+          href: isKitchen ? '/(tabs)/kitchen' : null,
         }}
       />
       <Tabs.Screen
