@@ -1,6 +1,5 @@
 import { Tabs } from 'expo-router';
 import { Users, Utensils, Settings, ChefHat } from 'lucide-react-native';
-import { colors } from '../../constants/colors';
 import { useAuth } from '../../providers/AuthProvider';
 
 export default function TabsLayout() {
@@ -32,24 +31,24 @@ export default function TabsLayout() {
         name="tables"
         options={{
           title: 'Tables',
-          href: isKitchen ? null : undefined,
           tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
+          href: isKitchen ? null : '/tables',
         }}
       />
       <Tabs.Screen
         name="orders"
         options={{
           title: 'Orders',
-          href: isKitchen ? null : undefined,
           tabBarIcon: ({ color, size }) => <Utensils size={size} color={color} />,
+          href: isKitchen ? null : '/orders',
         }}
       />
       <Tabs.Screen
         name="kitchen"
         options={{
           title: 'Kitchen',
-          href: isKitchen ? undefined : null,
           tabBarIcon: ({ color, size }) => <ChefHat size={size} color={color} />,
+          href: isKitchen ? '/kitchen' : null,
         }}
       />
       <Tabs.Screen

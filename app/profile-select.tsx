@@ -36,7 +36,9 @@ export default function ProfileSelect() {
       <Text style={styles.sectionLabel}>SELECT YOUR PROFILE</Text>
 
       <View style={styles.profileList}>
-        {staffProfiles.map((profile) => {
+        {staffProfiles
+          .filter((profile) => profile.role !== 'manager')
+          .map((profile) => {
           const meta = roleMeta[profile.role];
           const RoleIcon = meta.Icon;
           return (

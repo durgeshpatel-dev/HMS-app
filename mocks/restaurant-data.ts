@@ -58,13 +58,13 @@ export const menuItems: MenuItem[] = [
 ];
 
 export const tables: Table[] = [
-  { id: 't1', label: '1', seats: 4, status: 'free' },
-  { id: 't2', label: '2', seats: 2, status: 'free' },
-  { id: 't3', label: '3', seats: 4, status: 'ready', guests: 4, elapsedMinutes: 857 },
-  { id: 't4', label: '4', seats: 2, status: 'free' },
-  { id: 't5', label: '5', seats: 4, status: 'free' },
-  { id: 't6', label: '6', seats: 6, status: 'ready', guests: 6, elapsedMinutes: 826 },
-  { id: 't7', label: '7', seats: 4, status: 'free' },
+  { id: 't1', label: '1', seats: 4, status: 'available' },
+  { id: 't2', label: '2', seats: 2, status: 'available' },
+  { id: 't3', label: '3', seats: 4, status: 'occupied', guests: 4, elapsedMinutes: 857 },
+  { id: 't4', label: '4', seats: 2, status: 'available' },
+  { id: 't5', label: '5', seats: 4, status: 'available' },
+  { id: 't6', label: '6', seats: 6, status: 'occupied', guests: 6, elapsedMinutes: 826 },
+  { id: 't7', label: '7', seats: 4, status: 'available' },
   { id: 't8', label: '8', seats: 4, status: 'occupied', guests: 4, elapsedMinutes: 736 }
 ];
 
@@ -75,7 +75,7 @@ export const orders: Order[] = [
     items: [
       { itemId: 'm1', quantity: 2, status: 'new' }
     ],
-    status: 'open',
+    status: 'in-kitchen',
     createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
   },
   {
@@ -108,7 +108,7 @@ export const orders: Order[] = [
       { itemId: 'm2', quantity: 1, status: 'ready' },
       { itemId: 'm7', quantity: 2, status: 'ready' }
     ],
-    status: 'closed',
+    status: 'completed',
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
   }
 ];

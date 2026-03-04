@@ -18,17 +18,17 @@ export default function Orders() {
   const [tab, setTab] = useState<TabKey>('active');
 
   const activeCount = useMemo(
-    () => orders.filter((order) => order.status !== 'closed').length,
+    () => orders.filter((order) => order.status !== 'completed').length,
     [orders]
   );
   const closedCount = useMemo(
-    () => orders.filter((order) => order.status === 'closed').length,
+    () => orders.filter((order) => order.status === 'completed').length,
     [orders]
   );
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) =>
-      tab === 'active' ? order.status !== 'closed' : order.status === 'closed'
+      tab === 'active' ? order.status !== 'completed' : order.status === 'completed'
     );
   }, [orders, tab]);
 

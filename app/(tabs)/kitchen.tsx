@@ -62,14 +62,18 @@ export default function Kitchen() {
     return () => clearInterval(timer);
   }, []);
 
-  const activeOrders = useMemo(() => orders.filter((order) => order.status !== 'closed'), [orders]);
+  const activeOrders = useMemo(
+    () => orders.filter((order) => order.status !== 'completed'),
+    [orders]
+  );
 
   const orderSummaries = useMemo<DecoratedOrder[]>(() => {
     return activeOrders
       .map((order) => {
         const table = tables.find((entry) => entry.id === order.tableId);
         const orderType = getOrderType(order.tableId, order.notes);
-        const status: KitchenStatus = order.status === 'closed' ? 'ready' : order.status;
+        const status: KitchenStatus =
+          order.status === 'ready' ? 'ready' : 'open';
         const elapsedMinutes = Math.max(
           0,
           Math.floor((now - new Date(order.createdAt).getTime()) / 60000)

@@ -11,7 +11,7 @@ import { useAuth } from '../../providers/AuthProvider';
 
 export default function OrderDetails() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
-  const { orders, tables, menuItems, getOrderItems, getOrderTotal, selectTable, updateOrder } = useRestaurantStore();
+  const { orders, tables, menuItems, getOrderItems, getOrderTotal, selectTable, updateOrder, moveOrderToBilling } = useRestaurantStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -20,7 +20,7 @@ export default function OrderDetails() {
   const [isEditing, setIsEditing] = useState(false);
   const [localItems, setLocalItems] = useState(order?.items || []);
   const [notes, setNotes] = useState(order?.notes || '');
-  const [orderStatus, setOrderStatus] = useState(order?.status || 'open');
+  const [orderStatus, setOrderStatus] = useState(order?.status || 'in-kitchen');
 
   if (!order) {
     return (
@@ -104,21 +104,21 @@ export default function OrderDetails() {
   const handleCancelEdit = () => {
     setLocalItems(order?.items || []);
     setNotes(order?.notes || '');
-    setOrderStatus(order?.status || 'open');
+    setOrderStatus(order?.status || 'in-kitchen');
     setIsEditing(false);
   };
 
   const handleCompleteOrder = () => {
     Alert.alert(
-      'Complete Order',
-      'Mark this order as completed?',
+      'Send to Billing',
+      'Move this order to billing and generate bill?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Complete',
+          text: 'Continue',
           onPress: () => {
-            updateOrder(orderId, { status: 'closed' });
-            Alert.alert('Success', 'Order completed', [
+            moveOrderToBilling(orderId);
+            Alert.alert('Success', 'Order moved to billing', [
               { text: 'OK', onPress: () => router.back() }
             ]);
           }
@@ -135,7 +135,7 @@ export default function OrderDetails() {
             <ArrowLeft size={20} color={colors.textStrong} />
           </Pressable>
           <Text style={styles.title}>Order #{order.id.replace('o', '')}</Text>
-          {!isEditing && orderStatus !== 'closed' && (
+          {!isEditing && orderStatus !== 'completed' && (
             <Pressable style={styles.iconButton} onPress={() => setIsEditing(true)}>
               <Edit size={18} color={colors.textStrong} />
             </Pressable>
@@ -172,7 +172,7 @@ export default function OrderDetails() {
 
         <View style={styles.statusCard}>
           <Text style={styles.statusTitle}>STATUS LOG</Text>
-          {isEditing && orderStatus !== 'closed' && (
+          {isEditing && orderStatus !== 'completed' && (
             <View style={styles.statusButtons}>
               {['open', 'preparing', 'ready'].map((status) => (
                 <Pressable
@@ -293,7 +293,7 @@ export default function OrderDetails() {
               <Text style={styles.saveBtnText}>Save Changes</Text>
             </Pressable>
           </View>
-        ) : orderStatus !== 'closed' && (
+        ) : orderStatus !== 'completed' && (
           <View style={styles.actionButtons}>
             <Pressable style={styles.addButton} onPress={handleAddMore}>
               <Text style={styles.addButtonText}>＋ Add More Items</Text>

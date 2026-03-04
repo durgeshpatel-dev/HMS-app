@@ -55,11 +55,6 @@ export default function KitchenOrderPrep() {
 
   const order = orders.find((entry) => entry.id === orderId);
 
-  useEffect(() => {
-    if (!order || order.status !== 'open') return;
-    updateOrder(order.id, { status: 'preparing' });
-  }, [order, updateOrder]);
-
   const table = useMemo(
     () => tables.find((entry) => entry.id === order?.tableId),
     [order?.tableId, tables]

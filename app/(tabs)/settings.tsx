@@ -11,7 +11,7 @@ export default function Settings() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { menuItems, orders } = useRestaurantStore();
-  const billsGenerated = orders.filter((order) => order.status === 'closed').length;
+  const billsGenerated = orders.filter((order) => order.status === 'completed').length;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} showsVerticalScrollIndicator={false}>
