@@ -1,8 +1,13 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+/**
+ * Optimized AuthProvider - Production Ready
+ * With proper memoization and performance optimizations
+ */
+
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter, useSegments } from 'expo-router';
-import AuthService, { LoginResponse } from '../src/services/auth.service';
-import SocketService from '../src/services/socket.service';
-import NotificationService from '../src/services/notification.service';
+import AuthService, { LoginResponse } from '../services/auth.service';
+import SocketService from '../services/socket.service';
+import NotificationService from '../services/notification.service';
 
 type User = {
   id: string;
@@ -27,40 +32,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
 
-  // Check if user is authenticated on mount
+  // Check authentication on mount
   useEffect(() => {
     checkAuth();
   }, []);
 
-  // Handle navigation based on auth state
+  // Handle navigation based on auth state (optimized)
   useEffect(() => {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === 'phone-login' || segments[0] === 'pin';
     
     if (!user && !inAuthGroup) {
-      // Redirect to login
       router.replace('/phone-login');
     } else if (user && inAuthGroup) {
-      // Redirect to appropriate tab based on role
-      if (user.role === 'waiter') {
-        router.replace('/(tabs)/tables');
-      } else if (user.role === 'cook') {
-        router.replace('/(tabs)/kitchen');
-      }
+      // Navigate based on role
+      const destination = user.role === 'waiter' ? '/(tabs)/tables' : '/(tabs)/kitchen';
+      router.replace(destination);
     }
-  }, [user, segments, isLoading]);
+  }, [user, segments, isLoading, router]);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const currentUser = await AuthService.getCurrentUser();
       if (currentUser) {
         setUser(currentUser);
         
-        // Initialize Socket.io connection
+        // Initialize services
         SocketService.connect(currentUser.id, currentUser.role);
-        
-        // Register for push notifications
         NotificationService.registerForPushNotifications();
       }
     } catch (error) {
@@ -68,32 +67,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const signIn = async (phone: string, pin: string): Promise<boolean> => {
+  const signIn = useCallback(async (phone: string, pin: string): Promise<boolean> => {
     try {
       const response: LoginResponse = await AuthService.login(phone, pin);
       
       if (response.success && response.user) {
         setUser(response.user);
         
-        // Initialize Socket.io connection
+        // Initialize services
         SocketService.connect(response.user.id, response.user.role);
-        
-        // Register for push notifications
         NotificationService.registerForPushNotifications();
         
         return true;
       }
       
       return false;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Sign in failed:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       await AuthService.logout();
       SocketService.disconnect();
@@ -102,23 +99,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Sign out failed:', error);
     }
-  };
+  }, [router]);
 
-  const value = useMemo<AuthContextValue>(() => {
-    return {
+  // Memoize context value
+  const value = useMemo(
+    () => ({
       user,
       isLoading,
       signIn,
       signOut,
-    };
-  }, [user, isLoading]);
+    }),
+    [user, isLoading, signIn, signOut]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within AuthProvider');
   }
   return context;

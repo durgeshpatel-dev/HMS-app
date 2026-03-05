@@ -122,25 +122,7 @@ export default function GenerateBill() {
     console.log('Sharing bill for order:', billingOrder.id);
   }, [billingOrder]);
 
-  const handleCompletePayment = useCallback(() => {
-    if (!billingOrder) return;
-
-    Alert.alert(
-      'Complete Bill',
-      'Mark this order as paid and free the table?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          style: 'default',
-          onPress: () => {
-            completeOrder(billingOrder.id, discountPercent);
-            router.back();
-          },
-        },
-      ]
-    );
-  }, [billingOrder, completeOrder, discountPercent, router]);
+  // Payment completion removed - Only manager can complete orders from web dashboard
 
   const renderBillItem = useCallback(
     ({ item }: { item: BillItem }) => (
@@ -295,14 +277,12 @@ export default function GenerateBill() {
               </Pressable>
             </View>
 
-            <Pressable
-              style={styles.completeButton}
-              onPress={handleCompletePayment}
-            >
-              <Text style={styles.completeButtonText}>
-                Complete & Close Table
+            {/* Manager-only completion note */}
+            <View style={styles.managerNote}>
+              <Text style={styles.managerNoteText}>
+                ℹ️ Only the manager can complete payment and close this order from the web dashboard.
               </Text>
-            </Pressable>
+            </View>
           </View>
         }
       />
@@ -586,21 +566,19 @@ const styles = StyleSheet.create({
     color: colors.surface,
     marginLeft: 8,
   },
-  completeButton: {
-    borderRadius: 14,
-    backgroundColor: colors.success,
-    paddingVertical: 16,
-    alignItems: 'center',
+  managerNote: {
+    backgroundColor: '#FFF4E6',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
     marginBottom: 8,
-    shadowColor: colors.success,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#FFD68F',
   },
-  completeButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.surface,
+  managerNoteText: {
+    fontSize: 14,
+    color: '#B45309',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
