@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '../../constants/colors';
 import { useAuth } from '../../providers/AuthProvider';
@@ -8,11 +9,12 @@ import { useRestaurantStore } from '../../store/useRestaurantStore';
 export default function Settings() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { menuItems, orders } = useRestaurantStore();
-  const billsGenerated = orders.filter((order) => order.status === 'closed').length;
+  const billsGenerated = orders.filter((order) => order.status === 'completed').length;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Settings</Text>
 
       <View style={styles.profileCard}>

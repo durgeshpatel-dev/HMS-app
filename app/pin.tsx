@@ -1,23 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, Dimensions, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '../constants/colors';
 import { useAuth } from '../providers/AuthProvider';
 import { Utensils, ArrowLeft, X } from 'lucide-react-native';
 
 const PIN_LENGTH = 4;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const IS_WEB = Platform.OS === 'web';
+const MAX_CONTAINER_WIDTH = 480;
 
 export default function PinScreen() {
   const { selectedProfile, signInWithPin, clearProfile } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    if (!selectedProfile) {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted && !selectedProfile) {
       router.replace('/profile-select');
     }
-  }, [router, selectedProfile]);
+  }, [router, selectedProfile, isMounted]);
 
   const dots = useMemo(() => Array.from({ length: PIN_LENGTH }), []);
 
@@ -30,9 +40,7 @@ export default function PinScreen() {
       const ok = signInWithPin(next);
       if (ok) {
         const target =
-          selectedProfile?.role === 'manager'
-            ? '/(tabs)/dashboard'
-            : selectedProfile?.role === 'kitchen'
+          selectedProfile?.role === 'kitchen'
             ? '/(tabs)/kitchen'
             : '/(tabs)/tables';
         router.replace(target);
@@ -61,51 +69,53 @@ export default function PinScreen() {
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.changeUser} onPress={handleChangeUser}>
-        <ArrowLeft size={16} color={colors.primary} />
-        <Text style={styles.changeUserText}>Change user</Text>
-      </Pressable>
+      <View style={[styles.content, { paddingTop: IS_WEB ? 0 : insets.top + 12 }]}>
+        <Pressable style={styles.changeUser} onPress={handleChangeUser}>
+          <ArrowLeft size={16} color={colors.primary} />
+          <Text style={styles.changeUserText}>Change user</Text>
+        </Pressable>
 
-      <View style={styles.brandIcon}>
-        <Utensils size={26} color={colors.surface} />
-      </View>
-      <Text style={styles.title}>Welcome Back</Text>
-      <Text style={styles.subtitle}>Enter your PIN to start ordering</Text>
+        <View style={styles.brandIcon}>
+          <Utensils size={26} color={colors.surface} />
+        </View>
+        <Text style={styles.title}>Welcome Back</Text>
+        <Text style={styles.subtitle}>Enter your PIN to start ordering</Text>
 
-      <View style={styles.dotsRow}>
-        {dots.map((_, index) => (
-          <View
-            key={`dot-${index}`}
-            style={[
-              styles.dot,
-              index < pin.length && styles.dotFilled
-            ]}
-          />
-        ))}
-      </View>
+        <View style={styles.dotsRow}>
+          {dots.map((_, index) => (
+            <View
+              key={`dot-${index}`}
+              style={[
+                styles.dot,
+                index < pin.length && styles.dotFilled
+              ]}
+            />
+          ))}
+        </View>
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <View style={styles.keypad}>
-        {['1','2','3','4','5','6','7','8','9'].map((digit) => (
-          <Pressable key={digit} style={styles.key} onPress={() => handleDigit(digit)}>
-            <Text style={styles.keyText}>{digit}</Text>
+        <View style={styles.keypad}>
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+            <Pressable key={digit} style={styles.key} onPress={() => handleDigit(digit)}>
+              <Text style={styles.keyText}>{digit}</Text>
+            </Pressable>
+          ))}
+          <Pressable style={[styles.key, styles.clearKey]} onPress={handleClear}>
+            <X size={18} color={colors.danger} />
           </Pressable>
-        ))}
-        <Pressable style={[styles.key, styles.clearKey]} onPress={handleClear}>
-          <X size={18} color={colors.danger} />
-        </Pressable>
-        <Pressable style={styles.key} onPress={() => handleDigit('0')}>
-          <Text style={styles.keyText}>0</Text>
-        </Pressable>
-        <Pressable style={styles.key} onPress={handleBackspace}>
-          <ArrowLeft size={18} color={colors.mutedDark} />
+          <Pressable style={styles.key} onPress={() => handleDigit('0')}>
+            <Text style={styles.keyText}>0</Text>
+          </Pressable>
+          <Pressable style={styles.key} onPress={handleBackspace}>
+            <ArrowLeft size={18} color={colors.mutedDark} />
+          </Pressable>
+        </View>
+
+        <Pressable>
+          <Text style={styles.forgotText}>Forgot PIN?</Text>
         </Pressable>
       </View>
-
-      <Pressable>
-        <Text style={styles.forgotText}>Forgot PIN?</Text>
-      </Pressable>
     </View>
   );
 }
@@ -114,8 +124,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    alignItems: IS_WEB ? 'center' : undefined,
+    justifyContent: IS_WEB ? 'center' : undefined
+  },
+  content: {
+    width: '100%',
+    maxWidth: IS_WEB ? MAX_CONTAINER_WIDTH : undefined,
     paddingHorizontal: 28,
-    paddingTop: 40
+    paddingTop: IS_WEB ? 0 : 40
   },
   changeUser: {
     flexDirection: 'row',
@@ -179,12 +195,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 16
+    justifyContent: 'center',
+    gap: 16,
+    maxWidth: IS_WEB ? 360 : undefined,
+    alignSelf: 'center'
   },
   key: {
-    width: '30%',
-    aspectRatio: 1,
+    width: IS_WEB ? 100 : '28%',
+    height: IS_WEB ? 100 : undefined,
+    aspectRatio: IS_WEB ? undefined : 1,
     borderRadius: 999,
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',

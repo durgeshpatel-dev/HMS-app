@@ -1,338 +1,587 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Bell, ChefHat, Wifi } from 'lucide-react-native';
-import { colors } from '../../constants/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import {
+  Bell,
+  ChefHat,
+  CheckCircle2,
+  Flame,
+  Package,
+  Wifi,
+} from 'lucide-react-native';
 import { useRestaurantStore } from '../../store/useRestaurantStore';
-import { formatTimeAgo } from '../../utils/helpers';
 
-type FilterKey = 'all' | 'dinein';
+type QueueFilter = 'all' | 'dine-in' | 'parcel';
+type KitchenStatus = 'open' | 'preparing' | 'ready';
+
+type DecoratedOrder = {
+  id: string;
+  tableLabel: string;
+  orderNumber: string;
+  serverName: string;
+  elapsedLabel: string;
+  elapsedMinutes: number;
+  orderType: 'dine-in' | 'parcel';
+  status: KitchenStatus;
+};
+
+const PRIMARY_GREEN = '#16E45E';
+const LIGHT_BACKGROUND = '#F3F5F4';
+const CARD_BORDER = '#DEE3E0';
+const MUTED_TEXT = '#6B7280';
+const TITLE_TEXT = '#0F172A';
+const PARCEL_BLUE = '#3B82F6';
+const NEW_ORDER_ORANGE = '#FFA500';
+
+const formatElapsed = (createdAt: string, now: number) => {
+  const diffMs = Math.max(0, now - new Date(createdAt).getTime());
+  const totalMins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMins / 60);
+  const minutes = totalMins % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
+const getOrderType = (tableId: string, notes?: string): 'dine-in' | 'parcel' => {
+  const note = notes?.toLowerCase() || '';
+  if (tableId.startsWith('p') || note.includes('parcel') || note.includes('takeaway')) {
+    return 'parcel';
+  }
+  return 'dine-in';
+};
 
 export default function Kitchen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { orders, tables, getOrderItems, updateOrder } = useRestaurantStore();
-  const [filter, setFilter] = useState<FilterKey>('all');
+  const [filter, setFilter] = useState<QueueFilter>('all');
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   const activeOrders = useMemo(
-    () => orders.filter((order) => order.status === 'open' || order.status === 'preparing'),
+    () => orders.filter((order) => order.status !== 'completed'),
     [orders]
   );
 
-  const filtered = useMemo(() => {
-    if (filter === 'all') return activeOrders;
-    return activeOrders;
-  }, [activeOrders, filter]);
+  const orderSummaries = useMemo<DecoratedOrder[]>(() => {
+    return activeOrders
+      .map((order) => {
+        const table = tables.find((entry) => entry.id === order.tableId);
+        const orderType = getOrderType(order.tableId, order.notes);
+        const status: KitchenStatus =
+          order.status === 'ready' ? 'ready' : 'open';
+        const elapsedMinutes = Math.max(
+          0,
+          Math.floor((now - new Date(order.createdAt).getTime()) / 60000)
+        );
+
+        return {
+          id: order.id,
+          tableLabel: table?.label || order.tableId.replace('t', ''),
+          orderNumber: order.id.replace('o', ''),
+          serverName: 'Server',
+          elapsedLabel: formatElapsed(order.createdAt, now),
+          elapsedMinutes,
+          orderType,
+          status,
+        };
+      })
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          const rank: Record<KitchenStatus, number> = { open: 0, preparing: 1, ready: 2 };
+          return rank[a.status] - rank[b.status];
+        }
+        return b.elapsedMinutes - a.elapsedMinutes;
+      });
+  }, [activeOrders, now, tables]);
+
+  const dineInCount = useMemo(
+    () => orderSummaries.filter((order) => order.orderType === 'dine-in').length,
+    [orderSummaries]
+  );
+
+  const parcelCount = useMemo(
+    () => orderSummaries.filter((order) => order.orderType === 'parcel').length,
+    [orderSummaries]
+  );
+
+  const filteredOrders = useMemo(() => {
+    if (filter === 'all') return orderSummaries;
+    return orderSummaries.filter((order) => order.orderType === filter);
+  }, [filter, orderSummaries]);
+
+  const handleOpenOrder = (orderId: string) => {
+    router.push(`/kitchen/order/${orderId}`);
+  };
 
   const handleMarkReady = (orderId: string) => {
-    const order = orders.find((o) => o.id === orderId);
+    const order = orders.find((entry) => entry.id === orderId);
     if (!order) return;
+
     updateOrder(orderId, {
       status: 'ready',
-      items: order.items.map((item) => ({ ...item, status: 'ready' }))
+      items: order.items.map((item) => ({ ...item, status: 'ready' })),
     });
+
+    router.push(`/kitchen/ready/${orderId}`);
   };
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.headerIcon}>
-              <ChefHat size={18} color={colors.success} />
+      <View style={[styles.headerWrap, { paddingTop: insets.top + 8 }]}>
+        <View style={styles.headerRow}>
+          <View style={styles.brandWrap}>
+            <View style={styles.logoBubble}>
+              <ChefHat size={18} color={PRIMARY_GREEN} />
             </View>
             <View>
               <Text style={styles.title}>Kitchen Display</Text>
-              <Text style={styles.subtitle}>Shift: Lunch · {activeOrders.length} Active Orders</Text>
+              <Text style={styles.subtitle}>Shift: Lunch • {orderSummaries.length} Active Orders</Text>
             </View>
           </View>
-          <View style={styles.headerRight}>
+          <View style={styles.headerIcons}>
             <Pressable style={styles.iconButton}>
-              <Bell size={16} color={colors.textStrong} />
+              <Bell size={18} color="#374151" />
             </Pressable>
-            <Wifi size={18} color={colors.success} />
+            <Pressable style={styles.iconButton}>
+              <Wifi size={18} color="#374151" />
+            </Pressable>
           </View>
         </View>
 
-        <View style={styles.filters}>
-          <Pressable
-            style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          <FilterPill
+            label={`All (${orderSummaries.length})`}
+            active={filter === 'all'}
             onPress={() => setFilter('all')}
-          >
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-              All Orders ({activeOrders.length})
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.filterChip, filter === 'dinein' && styles.filterChipActiveOutline]}
-            onPress={() => setFilter('dinein')}
-          >
-            <Text style={[styles.filterText, filter === 'dinein' && styles.filterTextAccent]}>
-              Dine-in ({activeOrders.length})
-            </Text>
-          </Pressable>
-        </View>
+          />
+          <FilterPill
+            label={`Dine-in (${dineInCount})`}
+            active={filter === 'dine-in'}
+            onPress={() => setFilter('dine-in')}
+          />
+          <FilterPill
+            label={`Parcel (${parcelCount})`}
+            active={filter === 'parcel'}
+            onPress={() => setFilter('parcel')}
+          />
+        </ScrollView>
+      </View>
 
-        {filtered.map((order) => {
-          const tableLabel = tables.find((t) => t.id === order.tableId)?.label || order.tableId.replace('t', '');
-          const items = getOrderItems(order.id);
-          const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000));
-          const elapsedText = `${Math.floor(elapsedMinutes / 60)}:${String(elapsedMinutes % 60).padStart(2, '0')}`;
-          const orderNumber = order.id.replace('o', '');
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {filteredOrders.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Package size={40} color="#94A3B8" />
+            <Text style={styles.emptyTitle}>No active orders</Text>
+            <Text style={styles.emptyText}>Orders will appear here as soon as they are received.</Text>
+          </View>
+        ) : (
+          filteredOrders.map((summary) => {
+            const sourceOrder = orders.find((entry) => entry.id === summary.id);
+            if (!sourceOrder) return null;
 
-          return (
-            <View key={order.id} style={styles.orderCard}>
-              <View style={styles.orderStripe} />
-              <View style={styles.orderMeta}>
-                <View style={styles.orderBadge}>
-                  <View style={styles.badgeDot} />
-                  <Text style={styles.orderBadgeText}>NEW ORDER</Text>
-                </View>
-                <Text style={styles.orderNumber}>#{orderNumber}</Text>
+            const isNew = summary.status === 'open';
+            const isUrgent = summary.elapsedMinutes >= 15;
+            const items = getOrderItems(summary.id);
+
+            return (
+              <View key={summary.id} style={[styles.card, isNew && styles.cardNew]}>
+                <Pressable onPress={() => handleOpenOrder(summary.id)}>
+                  {isNew ? (
+                    <View style={styles.newBar}>
+                      <View style={styles.newOrderLabel}>
+                        <Flame size={12} color="#111827" />
+                        <Text style={styles.newOrderText}>NEW ORDER</Text>
+                      </View>
+                      <Text style={styles.newOrderCode}>#{summary.orderNumber}</Text>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.cardTop}>
+                    <View>
+                      <View
+                        style={[
+                          styles.typeChip,
+                          summary.orderType === 'parcel' ? styles.typeChipParcel : styles.typeChipDine,
+                        ]}
+                      >
+                        {summary.orderType === 'parcel' ? (
+                          <Package size={12} color={PARCEL_BLUE} />
+                        ) : (
+                          <ChefHat size={12} color={NEW_ORDER_ORANGE} />
+                        )}
+                        <Text
+                          style={[
+                            styles.typeChipText,
+                            summary.orderType === 'parcel'
+                              ? styles.typeChipTextParcel
+                              : styles.typeChipTextDine,
+                          ]}
+                        >
+                          {summary.orderType === 'parcel' ? 'Parcel' : 'Dine-in'}
+                        </Text>
+                      </View>
+                      <Text style={styles.tableTitle}>
+                        {summary.orderType === 'parcel' ? `Order #${summary.orderNumber}` : `Table ${summary.tableLabel}`}
+                      </Text>
+                      <Text style={styles.serverText}>
+                        {summary.orderType === 'parcel' ? 'Pickup • Awaiting runner' : `Server: ${summary.serverName}`}
+                      </Text>
+                    </View>
+
+                    <View style={styles.elapsedWrap}>
+                      <Text style={[styles.elapsedValue, isUrgent && styles.elapsedValueUrgent]}>
+                        {summary.elapsedLabel}
+                      </Text>
+                      <Text style={styles.elapsedCaption}>elapsed</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.itemsWrap}>
+                    {items.map(({ item, quantity }) => {
+                      const itemStatus = sourceOrder.items.find((line) => line.itemId === item.id)?.status;
+                      return (
+                        <View
+                          key={`${summary.id}-${item.id}`}
+                          style={[styles.itemRow, itemStatus === 'ready' && styles.itemRowReady]}
+                        >
+                          <View style={styles.qtyBox}>
+                            <Text style={styles.qtyText}>{quantity}</Text>
+                          </View>
+                          <View style={styles.itemInfo}>
+                            <View style={styles.itemNameRow}>
+                              <Text style={styles.itemName}>{item.name}</Text>
+                              {itemStatus === 'ready' ? (
+                                <CheckCircle2 size={14} color={PRIMARY_GREEN} />
+                              ) : null}
+                            </View>
+                            {sourceOrder.notes ? <Text style={styles.notePill}>{sourceOrder.notes}</Text> : null}
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </Pressable>
+
+                <Pressable style={styles.readyButton} onPress={() => handleMarkReady(summary.id)}>
+                  <CheckCircle2 size={20} color="#052E16" />
+                  <Text style={styles.readyButtonText}>Mark Order Ready</Text>
+                </Pressable>
               </View>
-              <View style={styles.orderHeader}>
-                <Text style={styles.tableTitle}>T-{tableLabel}</Text>
-                <View style={styles.elapsedBlock}>
-                  <Text style={styles.elapsedValue}>{elapsedText}</Text>
-                  <Text style={styles.elapsedLabel}>elapsed</Text>
-                </View>
-              </View>
-              <Text style={styles.orderSub}>Dine-in · Server: Amit</Text>
-              <View style={styles.itemPill}>
-                <View style={styles.qtyBox}>
-                  <Text style={styles.qtyText}>{items[0]?.quantity || 1}</Text>
-                </View>
-                <Text style={styles.itemName}>{items[0]?.item.name || 'Paneer Tikka'}</Text>
-                <View style={styles.bellButton}>
-                  <Bell size={14} color={colors.mutedDark} />
-                </View>
-              </View>
-              <Pressable style={styles.readyButton} onPress={() => handleMarkReady(order.id)}>
-                <Text style={styles.readyButtonText}>Mark Order Ready</Text>
-              </Pressable>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
       </ScrollView>
     </View>
+  );
+}
+
+type FilterPillProps = {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+};
+
+function FilterPill({ label, active, onPress }: FilterPillProps) {
+  return (
+    <Pressable style={[styles.pill, active && styles.pillActive]} onPress={onPress}>
+      <Text style={[styles.pillText, active && styles.pillTextActive]}>{label}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background
+    backgroundColor: LIGHT_BACKGROUND,
   },
-  content: {
-    padding: 16,
-    paddingBottom: 32
+  headerWrap: {
+    paddingTop: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
-  header: {
+  headerRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  headerIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: '#E8F9EE',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.textStrong
-  },
-  subtitle: {
-    fontSize: 12,
-    color: colors.mutedDark,
-    marginTop: 2
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
-  },
-  iconButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  filters: {
+  brandWrap: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 16
+    alignItems: 'center',
+    flex: 1,
   },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  filterChipActive: {
-    backgroundColor: colors.success,
-    borderColor: colors.success
-  },
-  filterChipActiveOutline: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border
-  },
-  filterText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.mutedDark
-  },
-  filterTextActive: {
-    color: colors.surface
-  },
-  filterTextAccent: {
-    color: colors.textStrong
-  },
-  orderCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 14,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3
-  },
-  orderStripe: {
-    position: 'absolute',
-    left: 0,
-    top: 10,
-    bottom: 10,
-    width: 4,
-    borderRadius: 999,
-    backgroundColor: '#FF4D4F'
-  },
-  qtyBox: {
-    minWidth: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
+  logoBubble: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border
+    backgroundColor: '#DDFBE9',
   },
-  qtyText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textStrong
+  title: {
+    color: TITLE_TEXT,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
   },
-  itemName: {
-    flex: 1,
+  subtitle: {
+    marginTop: 2,
     fontSize: 13,
-    fontWeight: '600',
-    color: colors.textStrong
+    color: MUTED_TEXT,
+    fontWeight: '500',
   },
-  readyButton: {
+  headerIcons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 8,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterRow: {
     marginTop: 14,
-    backgroundColor: colors.success,
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center'
+    flexDirection: 'row',
+    gap: 10,
   },
-  readyButtonText: {
-    fontSize: 13,
+  pill: {
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+  },
+  pillActive: {
+    backgroundColor: PRIMARY_GREEN,
+    borderColor: PRIMARY_GREEN,
+  },
+  pillText: {
+    color: '#374151',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  pillTextActive: {
+    color: '#052E16',
     fontWeight: '700',
-    color: colors.surface
   },
-  orderMeta: {
+  content: {
+    padding: 14,
+    paddingBottom: 28,
+    gap: 12,
+  },
+  emptyWrap: {
+    marginTop: 28,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 18,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: TITLE_TEXT,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: MUTED_TEXT,
+    textAlign: 'center',
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  cardNew: {
+    borderColor: NEW_ORDER_ORANGE,
+    borderWidth: 2,
+  },
+  newBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10
+    justifyContent: 'space-between',
+    backgroundColor: NEW_ORDER_ORANGE,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
-  orderBadge: {
+  newOrderLabel: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: '#E8F9EE'
   },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.success
+  newOrderText: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: '#111827',
   },
-  orderBadgeText: {
-    fontSize: 10,
-    color: colors.success,
-    fontWeight: '700'
+  newOrderCode: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+    backgroundColor: '#FFE3B0',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  orderNumber: {
-    fontSize: 12,
-    color: colors.mutedDark
-  },
-  orderHeader: {
+  cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: 10
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0EF',
+    gap: 10,
   },
-  tableTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textStrong
-  },
-  elapsedBlock: {
-    alignItems: 'flex-end'
-  },
-  elapsedValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FF4D4F'
-  },
-  elapsedLabel: {
-    fontSize: 10,
-    color: colors.mutedDark,
-    marginTop: 2
-  },
-  orderSub: {
-    fontSize: 12,
-    color: colors.mutedDark,
-    marginTop: 4
-  },
-  itemPill: {
+  typeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 10,
-    borderRadius: 14,
+    gap: 4,
+    alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceAlt,
-    marginTop: 12
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  bellButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+  typeChipDine: {
+    borderColor: NEW_ORDER_ORANGE,
+    backgroundColor: '#FFF8EC',
+  },
+  typeChipParcel: {
+    borderColor: PARCEL_BLUE,
+    backgroundColor: '#ECF4FF',
+  },
+  typeChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  typeChipTextDine: {
+    color: '#C76B00',
+  },
+  typeChipTextParcel: {
+    color: PARCEL_BLUE,
+  },
+  tableTitle: {
+    marginTop: 6,
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: '800',
+    color: TITLE_TEXT,
+    letterSpacing: -0.5,
+  },
+  serverText: {
+    marginTop: 4,
+    color: MUTED_TEXT,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  elapsedWrap: {
+    alignItems: 'flex-end',
+    marginTop: 4,
+  },
+  elapsedValue: {
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: '#0F172A',
+  },
+  elapsedValueUrgent: {
+    color: '#EF4444',
+  },
+  elapsedCaption: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  itemsWrap: {
+    backgroundColor: '#FFFFFF',
+  },
+  itemRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF0EF',
+  },
+  itemRowReady: {
+    backgroundColor: '#ECFDF3',
+  },
+  qtyBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: '#E9EBEE',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface
-  }
+  },
+  qtyText: {
+    fontSize: 18,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  itemInfo: {
+    flex: 1,
+  },
+  itemNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  itemName: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: '#111827',
+    flexShrink: 1,
+  },
+  notePill: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    fontSize: 13,
+    color: '#374151',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  readyButton: {
+    margin: 14,
+    borderRadius: 12,
+    backgroundColor: PRIMARY_GREEN,
+    minHeight: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  readyButtonText: {
+    color: '#052E16',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
 });

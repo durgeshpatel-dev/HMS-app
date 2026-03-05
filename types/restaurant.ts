@@ -7,7 +7,7 @@ export type MenuItem = {
   isPopular?: boolean;
 };
 
-export type TableStatus = 'free' | 'occupied' | 'ready';
+export type TableStatus = 'available' | 'occupied' | 'billing';
 
 export type Table = {
   id: string;
@@ -16,19 +16,28 @@ export type Table = {
   status: TableStatus;
   guests?: number;
   elapsedMinutes?: number;
+  currentOrderId?: string;
 };
+
+export type OrderItemStatus = 'new' | 'preparing' | 'ready';
 
 export type OrderItem = {
   itemId: string;
   quantity: number;
-  status?: 'new' | 'ready';
+  status?: OrderItemStatus;
+  specialInstructions?: string;
 };
+
+export type OrderStatus = 'pending' | 'in-kitchen' | 'ready' | 'billing' | 'completed';
 
 export type Order = {
   id: string;
   tableId: string;
   items: OrderItem[];
-  status: 'open' | 'preparing' | 'ready' | 'closed';
+  status: OrderStatus;
   createdAt: string;
+  updatedAt?: string;
   notes?: string;
+  waiterName?: string;
+  discountPercent?: number;
 };

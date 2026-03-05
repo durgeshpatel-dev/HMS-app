@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '../../constants/colors';
 import { useRestaurantStore } from '../../store/useRestaurantStore';
@@ -13,20 +14,21 @@ export default function Orders() {
   const { orders, tables, menuItems, getOrderTotal } = useRestaurantStore();
   const { user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<TabKey>('active');
 
   const activeCount = useMemo(
-    () => orders.filter((order) => order.status !== 'closed').length,
+    () => orders.filter((order) => order.status !== 'completed').length,
     [orders]
   );
   const closedCount = useMemo(
-    () => orders.filter((order) => order.status === 'closed').length,
+    () => orders.filter((order) => order.status === 'completed').length,
     [orders]
   );
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) =>
-      tab === 'active' ? order.status !== 'closed' : order.status === 'closed'
+      tab === 'active' ? order.status !== 'completed' : order.status === 'completed'
     );
   }, [orders, tab]);
 
@@ -37,7 +39,7 @@ export default function Orders() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Orders</Text>
 
         <View style={styles.tabs}>

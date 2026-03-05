@@ -1,7 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Printer } from 'lucide-react-native';
+import { useState } from 'react';
+import { ArrowLeft, Plus, Minus, Trash2, ChefHat, X, Save, Edit } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { useRestaurantStore } from '../../store/useRestaurantStore';
 import { formatCurrency, formatTimeAgo } from '../../utils/helpers';
@@ -9,11 +11,16 @@ import { useAuth } from '../../providers/AuthProvider';
 
 export default function OrderDetails() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
-  const { orders, tables, getOrderItems, getOrderTotal, selectTable } = useRestaurantStore();
+  const { orders, tables, menuItems, getOrderItems, getOrderTotal, selectTable, updateOrder, moveOrderToBilling } = useRestaurantStore();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const order = orders.find((o) => o.id === orderId);
+  const [isEditing, setIsEditing] = useState(false);
+  const [localItems, setLocalItems] = useState(order?.items || []);
+  const [notes, setNotes] = useState(order?.notes || '');
+  const [orderStatus, setOrderStatus] = useState(order?.status || 'in-kitchen');
 
   if (!order) {
     return (
@@ -26,7 +33,14 @@ export default function OrderDetails() {
   const table = tables.find((t) => t.id === order.tableId);
   const tableLabel = table?.label || order.tableId;
   const items = getOrderItems(order.id);
-  const subtotal = getOrderTotal(order.id);
+
+  // Calculate totals from local items when editing
+  const displayItems = isEditing ? localItems.map(li => {
+    const menuItem = menuItems.find(mi => mi.id === li.itemId);
+    return { item: menuItem || { id: li.itemId, name: 'Unknown', price: 0 }, quantity: li.quantity };
+  }) : items;
+
+  const subtotal = displayItems.reduce((sum, { item, quantity }) => sum + (item.price * quantity), 0);
   const gst = Math.round(subtotal * 0.05 * 100) / 100;
   const grandTotal = subtotal + gst;
   const guests = table?.guests || 0;
@@ -44,17 +58,93 @@ export default function OrderDetails() {
     router.push('/create-order');
   };
 
+  const handleUpdateQuantity = (itemId: string, delta: number) => {
+    setLocalItems(prev => {
+      return prev.map(item => {
+        if (item.itemId === itemId) {
+          const newQuantity = item.quantity + delta;
+          return newQuantity > 0 ? { ...item, quantity: newQuantity } : item;
+        }
+        return item;
+      }).filter(item => item.quantity > 0);
+    });
+  };
+
+  const handleRemoveItem = (itemId: string) => {
+    Alert.alert(
+      'Remove Item',
+      'Remove this item from the order?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => setLocalItems(prev => prev.filter(item => item.itemId !== itemId))
+        }
+      ]
+    );
+  };
+
+  const handleSaveChanges = () => {
+    if (localItems.length === 0) {
+      Alert.alert('Error', 'Order must have at least one item');
+      return;
+    }
+
+    updateOrder(orderId, {
+      items: localItems,
+      notes: notes,
+      status: orderStatus
+    });
+
+    setIsEditing(false);
+    Alert.alert('Success', 'Order updated successfully');
+  };
+
+  const handleCancelEdit = () => {
+    setLocalItems(order?.items || []);
+    setNotes(order?.notes || '');
+    setOrderStatus(order?.status || 'in-kitchen');
+    setIsEditing(false);
+  };
+
+  const handleCompleteOrder = () => {
+    Alert.alert(
+      'Send to Billing',
+      'Move this order to billing and generate bill?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            moveOrderToBilling(orderId);
+            Alert.alert('Success', 'Order moved to billing', [
+              { text: 'OK', onPress: () => router.back() }
+            ]);
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <ArrowLeft size={20} color={colors.textStrong} />
           </Pressable>
           <Text style={styles.title}>Order #{order.id.replace('o', '')}</Text>
-          <Pressable style={styles.iconButton}>
-            <Printer size={18} color={colors.textStrong} />
-          </Pressable>
+          {!isEditing && orderStatus !== 'completed' && (
+            <Pressable style={styles.iconButton} onPress={() => setIsEditing(true)}>
+              <Edit size={18} color={colors.textStrong} />
+            </Pressable>
+          )}
+          {isEditing && (
+            <Pressable style={styles.saveButton} onPress={handleSaveChanges}>
+              <Save size={18} color={colors.surface} />
+            </Pressable>
+          )}
         </View>
 
         <Text style={styles.subTitle}>Table {tableLabel} • Dine In</Text>
@@ -82,10 +172,33 @@ export default function OrderDetails() {
 
         <View style={styles.statusCard}>
           <Text style={styles.statusTitle}>STATUS LOG</Text>
+          {isEditing && orderStatus !== 'completed' && (
+            <View style={styles.statusButtons}>
+              {['open', 'preparing', 'ready'].map((status) => (
+                <Pressable
+                  key={status}
+                  style={[
+                    styles.statusButton,
+                    orderStatus === status && styles.statusButtonActive
+                  ]}
+                  onPress={() => setOrderStatus(status as any)}
+                >
+                  <Text style={[
+                    styles.statusButtonText,
+                    orderStatus === status && styles.statusButtonTextActive
+                  ]}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <View style={styles.statusRow}>
-            <View style={[styles.statusDot, styles.statusDotActive]} />
+            <View style={[styles.statusDot, orderStatus === 'preparing' && styles.statusDotActive]} />
             <View style={styles.statusContent}>
-              <Text style={styles.statusTextPrimary}>Cooking</Text>
+              <Text style={orderStatus === 'preparing' ? styles.statusTextPrimary : styles.statusTextPrimaryMuted}>
+                {orderStatus === 'preparing' ? 'Cooking' : orderStatus === 'ready' ? 'Ready' : 'Pending'}
+              </Text>
               <Text style={styles.statusTextSecondary}>
                 {startedText}
               </Text>
@@ -100,15 +213,61 @@ export default function OrderDetails() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Items ({items.length})</Text>
+        <Text style={styles.sectionTitle}>Items ({displayItems.length})</Text>
         <View style={styles.itemCard}>
-          {items.map(({ item, quantity }) => (
+          {displayItems.map(({ item, quantity }) => (
             <View key={item.id} style={styles.itemLine}>
               <View style={styles.itemAccent} />
-              <Text style={styles.itemLineText}>{quantity}x {item.name}</Text>
+              <View style={styles.itemContent}>
+                <Text style={styles.itemLineText}>{quantity}x {item.name}</Text>
+                <Text style={styles.itemPrice}>₹{item.price * quantity}</Text>
+              </View>
+              {isEditing && (
+                <View style={styles.itemActions}>
+                  <Pressable
+                    style={styles.quantityBtn}
+                    onPress={() => handleUpdateQuantity(item.id, -1)}
+                  >
+                    <Minus size={14} color={colors.surface} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.quantityBtn}
+                    onPress={() => handleUpdateQuantity(item.id, 1)}
+                  >
+                    <Plus size={14} color={colors.surface} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.deleteBtn}
+                    onPress={() => handleRemoveItem(item.id)}
+                  >
+                    <Trash2 size={14} color={colors.danger} />
+                  </Pressable>
+                </View>
+              )}
             </View>
           ))}
         </View>
+
+        {isEditing && (
+          <View style={styles.notesSection}>
+            <Text style={styles.sectionTitle}>Order Notes</Text>
+            <TextInput
+              style={styles.notesInput}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Add special instructions..."
+              placeholderTextColor={colors.mutedDark}
+              multiline
+              numberOfLines={3}
+            />
+          </View>
+        )}
+        {!isEditing && notes && (
+          <View style={styles.notesSection}>
+            <Text style={styles.sectionTitle}>Order Notes</Text>
+            <Text style={styles.notesText}>{notes}</Text>
+          </View>
+        )}
 
         <View style={styles.totalCard}>
           <View style={styles.totalLine}>
@@ -125,9 +284,25 @@ export default function OrderDetails() {
           </View>
         </View>
 
-        <Pressable style={styles.addButton} onPress={handleAddMore}>
-          <Text style={styles.addButtonText}>＋ Add More Items</Text>
-        </Pressable>
+        {isEditing ? (
+          <View style={styles.actionButtons}>
+            <Pressable style={styles.cancelBtn} onPress={handleCancelEdit}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={styles.saveBtn} onPress={handleSaveChanges}>
+              <Text style={styles.saveBtnText}>Save Changes</Text>
+            </Pressable>
+          </View>
+        ) : orderStatus !== 'completed' && (
+          <View style={styles.actionButtons}>
+            <Pressable style={styles.addButton} onPress={handleAddMore}>
+              <Text style={styles.addButtonText}>＋ Add More Items</Text>
+            </Pressable>
+            <Pressable style={styles.completeBtn} onPress={handleCompleteOrder}>
+              <Text style={styles.completeBtnText}>Complete Order</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -329,11 +504,144 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary,
     paddingVertical: 12,
-    alignItems: 'center'
+    alignItems: 'center',
+    flex: 1
   },
   addButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.primary
+  },
+  saveButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  statusButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12
+  },
+  statusButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center'
+  },
+  statusButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  statusButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.mutedDark
+  },
+  statusButtonTextActive: {
+    color: colors.surface
+  },
+  itemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  itemPrice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.mutedDark
+  },
+  itemActions: {
+    flexDirection: 'row',
+    gap: 6,
+    marginLeft: 8
+  },
+  quantityBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  deleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  notesSection: {
+    marginBottom: 16
+  },
+  notesInput: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    fontSize: 14,
+    color: colors.textStrong,
+    minHeight: 80,
+    textAlignVertical: 'top'
+  },
+  notesText: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    fontSize: 14,
+    color: colors.textStrong
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12
+  },
+  cancelBtn: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.danger,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.danger
+  },
+  saveBtn: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  saveBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.surface
+  },
+  completeBtn: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: colors.success,
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  completeBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.surface
   }
 });
