@@ -74,8 +74,24 @@ jobs:
             echo "EXPO_TOKEN secret is missing" >&2
             exit 1
           fi
-          npx eas build --platform android --profile "$PROFILE" --non-interactive --wait --json > build-result.json
-          node -e "const fs=require('fs');const out=JSON.parse(fs.readFileSync('build-result.json','utf8'));const result=Array.isArray(out)?out[0]:out;const url=result?.artifacts?.buildUrl || result?.artifacts?.applicationArchiveUrl || '';const id=result?.id || '';console.log('buildId='+id);console.log('artifactUrl='+url);fs.appendFileSync(process.env.GITHUB_OUTPUT,`build_id=${id}\nartifact_url=${url}\n`);if(!url){process.exit(1)}"
+          npx eas build --platform android --profile "$PROFILE" --non-interactive --wait --json > build.json
+
+          build_id=$(jq -r 'if type=="array" then (.[0].id // "") else (.id // "") end' build.json)
+          artifact_url=$(jq -r 'if type=="array" then (.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // "") else (.artifacts.buildUrl // .artifacts.applicationArchiveUrl // "") end' build.json)
+
+          echo "buildId=$build_id"
+          echo "artifactUrl=$artifact_url"
+
+          if [ -z "$artifact_url" ]; then
+            echo "Failed to extract artifact URL from EAS build output" >&2
+            cat build.json >&2
+            exit 1
+          fi
+
+          {
+            echo "build_id=$build_id"
+            echo "artifact_url=$artifact_url"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Download APK/AAB artifact
         run: |
