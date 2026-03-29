@@ -52,6 +52,12 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="kitchenStyles"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',

@@ -17,6 +17,28 @@ This guide is for repeatable APK builds while your system is under active develo
 
 For `preview` builds, workflow also updates a prerelease tag: `apk-latest`.
 
+## OTA updates (no Play Store required)
+
+OTA is now configured for this app using EAS Update (channels/branches).
+
+- Expo config uses:
+  - `runtimeVersion: { policy: "appVersion" }`
+  - `updates.url: https://u.expo.dev/<EAS_PROJECT_ID>`
+- OTA publish workflow:
+  - [.github/workflows/publish-ota-update.yml](.github/workflows/publish-ota-update.yml)
+
+### Important first-time rule
+
+Users must install at least one APK built **after OTA config** to enable OTA on their devices.
+After that, JS/UI-only changes can be delivered without reinstall.
+
+### Channel/branch model used
+
+- `preview` build channel -> publish OTA to `preview` branch
+- `production` build channel -> publish OTA to `production` branch
+
+Use matching build/update lanes to avoid sending wrong updates to devices.
+
 ## One-time setup required from your side
 
 ### 1) Expo account token
@@ -49,6 +71,18 @@ Keep these in GitHub repo secrets:
 
 ### Option B: Auto on push to main
 Workflow triggers on source changes and builds automatically.
+
+## How to publish OTA update
+
+1. Open `HMS-app` repo -> Actions -> **Publish OTA Update**.
+2. Click **Run workflow**.
+3. Select branch:
+  - `preview` for tester/internal devices
+  - `production` for stable devices
+4. Add short message (example: `fix: remove kitchenStyles route crash`).
+5. Run workflow and verify Group ID in summary.
+
+Devices with matching runtime/channel receive update on next app launch.
 
 ## Safe deployment strategy (recommended)
 

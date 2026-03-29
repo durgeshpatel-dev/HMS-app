@@ -331,7 +331,3 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 });
-
-export default function KitchenStylesRoutePlaceholder() {
-  return null;
-}

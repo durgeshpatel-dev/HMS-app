@@ -14,7 +14,7 @@ import { useRestaurantStore } from '../../store/useRestaurantStore';
 import { useNotificationStore } from '../../store/useNotificationStore';
 import { NotificationPanel } from '../../components/NotificationPanel';
 import { formatElapsed, getItemInstructionText } from '../../utils/kitchen.helpers';
-import { styles, PRIMARY_GREEN } from './kitchenStyles';
+import { styles, PRIMARY_GREEN } from '../../src/styles/kitchenStyles';
 
 type QueueFilter = 'all' | 'dine-in' | 'parcel';
 type KitchenStatus = 'open' | 'preparing' | 'ready';
