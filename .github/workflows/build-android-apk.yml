@@ -1,0 +1,106 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        required: true
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - production
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "components/**"
+      - "src/**"
+      - "store/**"
+      - "providers/**"
+      - "types/**"
+      - "utils/**"
+      - "constants/**"
+      - "app.json"
+      - "package.json"
+      - "eas.json"
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    env:
+      PROFILE: ${{ inputs.profile || 'preview' }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android artifact on EAS
+        id: eas_build
+        run: |
+          if [ -z "$EAS_PROJECT_ID" ]; then
+            echo "EAS_PROJECT_ID secret is missing" >&2
+            exit 1
+          fi
+          eas build --platform android --profile "$PROFILE" --non-interactive --wait --json > build-result.json
+          node -e "const fs=require('fs');const out=JSON.parse(fs.readFileSync('build-result.json','utf8'));const result=Array.isArray(out)?out[0]:out;const url=result?.artifacts?.buildUrl || result?.artifacts?.applicationArchiveUrl || '';const id=result?.id || '';console.log('buildId='+id);console.log('artifactUrl='+url);fs.appendFileSync(process.env.GITHUB_OUTPUT,`build_id=${id}\nartifact_url=${url}\n`);if(!url){process.exit(1)}"
+
+      - name: Download APK/AAB artifact
+        run: |
+          mkdir -p artifacts
+          FILE_NAME=$(basename "${{ steps.eas_build.outputs.artifact_url }}")
+          EXT="${FILE_NAME##*.}"
+          FINAL_NAME="hms-staff-${PROFILE}.${EXT}"
+          curl -L "${{ steps.eas_build.outputs.artifact_url }}" -o "artifacts/$FINAL_NAME"
+          echo "ARTIFACT_NAME=$FINAL_NAME" >> $GITHUB_ENV
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ env.PROFILE }}
+          path: artifacts/${{ env.ARTIFACT_NAME }}
+
+      - name: Publish latest preview APK to GitHub Release
+        if: env.PROFILE == 'preview'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Latest Android APK (Preview)
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: artifacts/${{ env.ARTIFACT_NAME }}
+          body: |
+            Auto-generated Android preview build.
+            Build ID: ${{ steps.eas_build.outputs.build_id }}
+
+      - name: Build summary
+        run: |
+          {
+            echo "### Android Build Complete"
+            echo "- Profile: \\`${{ env.PROFILE }}\\`"
+            echo "- Build ID: \\`${{ steps.eas_build.outputs.build_id }}\\`"
+            echo "- Artifact URL: ${{ steps.eas_build.outputs.artifact_url }}"
+            echo ""
+            echo "Download artifact from the Actions run artifacts section."
+          } >> "$GITHUB_STEP_SUMMARY"
