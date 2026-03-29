@@ -57,6 +57,9 @@ jobs:
       - name: Install EAS CLI
         run: npm install -g eas-cli
 
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
         with:
@@ -74,24 +77,22 @@ jobs:
             echo "EXPO_TOKEN secret is missing" >&2
             exit 1
           fi
-          npx eas build --platform android --profile "$PROFILE" --non-interactive --wait --json > build.json
+          npx eas build --platform android --profile "$PROFILE" --non-interactive --wait --json > build-result.json
 
-          build_id=$(jq -r 'if type=="array" then (.[0].id // "") else (.id // "") end' build.json)
-          artifact_url=$(jq -r 'if type=="array" then (.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // "") else (.artifacts.buildUrl // .artifacts.applicationArchiveUrl // "") end' build.json)
+          artifact_url=$(cat build-result.json | jq -r 'if type=="array" then (.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // "") else (.artifacts.buildUrl // .artifacts.applicationArchiveUrl // "") end')
+          build_id=$(cat build-result.json | jq -r 'if type=="array" then (.[0].id // "") else (.id // "") end')
 
           echo "buildId=$build_id"
           echo "artifactUrl=$artifact_url"
 
           if [ -z "$artifact_url" ]; then
-            echo "Failed to extract artifact URL from EAS build output" >&2
-            cat build.json >&2
+            echo "Artifact URL not found" >&2
+            cat build-result.json >&2
             exit 1
           fi
 
-          {
-            echo "build_id=$build_id"
-            echo "artifact_url=$artifact_url"
-          } >> "$GITHUB_OUTPUT"
+          echo "build_id=$build_id" >> $GITHUB_OUTPUT
+          echo "artifact_url=$artifact_url" >> $GITHUB_OUTPUT
 
       - name: Download APK/AAB artifact
         run: |
