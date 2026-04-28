@@ -60,8 +60,14 @@ export default function OrderDetails() {
   }) : combinedItems;
 
   const subtotal = displayItems.reduce((sum, { item, quantity }) => sum + (item.price * quantity), 0);
-  const gst = Math.round(subtotal * 0.05 * 100) / 100;
+
+  const combinedSubtotal = allTableOrders.reduce((sum, o) => sum + Number(o.subtotal ?? 0), 0);
+  const combinedTax = allTableOrders.reduce((sum, o) => sum + Number(o.taxAmount ?? 0), 0);
+  const taxRate = combinedSubtotal > 0 ? combinedTax / combinedSubtotal : 0;
+  const gst = Math.round(subtotal * taxRate * 100) / 100;
   const grandTotal = subtotal + gst;
+  const taxPercent = Math.round(taxRate * 100 * 100) / 100;
+  const taxLabel = `GST (${Number.isInteger(taxPercent) ? taxPercent.toFixed(0) : taxPercent.toFixed(2)}%)`;
   const guests = table?.guests || 0;
 
   const timeIn = new Date(order.createdAt).toLocaleTimeString('en-US', {
@@ -396,6 +402,7 @@ export default function OrderDetails() {
             subtotal={subtotal}
             gst={gst}
             grandTotal={grandTotal}
+            taxLabel={taxLabel}
             sendingToManager={sendingToManager}
             onSendToManager={handleSendToManager}
             onBackToTables={() => router.replace('/(tabs)/tables')}

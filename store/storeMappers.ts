@@ -119,6 +119,9 @@ export const mapOrderFromApi = (order: any): Order => ({
       ? 'parcel'
       : 'dine-in',
   paymentMethod: order.paymentMethod || undefined,
+  subtotal: Number(order.subtotal ?? 0),
+  taxAmount: Number(order.taxAmount ?? order.tax_amount ?? 0),
+  totalAmount: Number(order.totalAmount ?? order.total_amount ?? 0),
   items: (order.orderItems || order.order_items || order.items || []).map((line: any) => ({
     itemId: `m${String(getApiId(line?.menuItem ? line.menuItem : line) || line?.menuItem?.id || line?.item?.id || '')}`,
     quantity: line.quantity,

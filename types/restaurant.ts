@@ -62,4 +62,7 @@ export type Order = {
   discountPercent?: number;
   orderType?: OrderType;
   paymentMethod?: PaymentMethod;
+  subtotal?: number;
+  taxAmount?: number;
+  totalAmount?: number;
 };
