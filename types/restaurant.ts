@@ -38,6 +38,7 @@ export type OrderItemStatus = 'new' | 'preparing' | 'ready';
 export type OrderItem = {
   itemId: string;
   quantity: number;
+  orderItemId?: string;
   status?: OrderItemStatus;
   specialInstructions?: string;
   spiceLevel?: string;

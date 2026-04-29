@@ -125,6 +125,7 @@ export const mapOrderFromApi = (order: any): Order => ({
   items: (order.orderItems || order.order_items || order.items || []).map((line: any) => ({
     itemId: `m${String(getApiId(line?.menuItem ? line.menuItem : line) || line?.menuItem?.id || line?.item?.id || '')}`,
     quantity: line.quantity,
+    orderItemId: line?.id ? String(line.id) : (line?.orderItemId ? String(line.orderItemId) : undefined),
     status: mapOrderItemStatus(line.status),
     specialInstructions: line.specialInstructions || line?.customizations?.notes || '',
     spiceLevel: line?.spiceLevel || line?.customizations?.spiceLevel || '',
