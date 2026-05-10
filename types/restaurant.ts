@@ -7,6 +7,7 @@ export type MenuItem = {
   isPopular?: boolean;
   image?: string;
   isAvailable?: boolean;
+  customizations?: any;
 };
 
 export type MenuCategory = {

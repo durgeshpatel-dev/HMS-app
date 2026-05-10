@@ -94,6 +94,7 @@ export const mapMenuItemFromApi = (item: any): MenuItem => ({
   price: Number(item.price || 0),
   category: item.category?.name || item.categoryName || item.category,
   isPopular: false,
+  customizations: item.customizations,
 });
 
 export const mapTableFromApi = (table: any): Table => ({
