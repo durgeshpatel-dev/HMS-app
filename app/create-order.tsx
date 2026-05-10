@@ -134,8 +134,8 @@ export default function CreateOrder() {
     </Pressable>
   ), [activeCategory]);
 
-  const ListHeaderComponent = useCallback(() => (
-    <>
+  const listHeaderElement = (
+    <View>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable style={styles.backButton} onPress={handleBack}>
           <ArrowLeft size={24} color="#000" />
@@ -165,8 +165,8 @@ export default function CreateOrder() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categoryRow}
       />
-    </>
-  ), [insets.top, handleBack, query, categories, renderCategoryItem]);
+    </View>
+  );
 
   const ListFooterComponent = useCallback(() => (
     <View style={styles.listFooter} />
@@ -178,7 +178,7 @@ export default function CreateOrder() {
         data={filteredItems}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        ListHeaderComponent={ListHeaderComponent}
+        ListHeaderComponent={listHeaderElement}
         ListFooterComponent={ListFooterComponent}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
